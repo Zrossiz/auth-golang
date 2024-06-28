@@ -41,6 +41,8 @@ type AppProvider interface {
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidAppId       = errors.New("invalid app id")
+	ErrUserExist          = errors.New("user already exists")
 )
 
 func New(
@@ -123,8 +125,10 @@ func (a *Auth) RegisterNewUser(
 
 	id, err := a.usrSaver.SaveUser(ctx, email, passHash)
 	if err != nil {
-		log.Error("failed to save user", sl.Err(err))
-		return 0, fmt.Errorf("%s: %w", op, err)
+		if errors.Is(err, storage.ErrUserExists) {
+			log.Error("failed to save user", sl.Err(err))
+			return 0, fmt.Errorf("%s: %w", op, ErrUserExist)
+		}
 	}
 
 	return id, nil
@@ -142,7 +146,10 @@ func (a *Auth) IsAdmin(ctx context.Context, userID int64) (bool, error) {
 
 	isAdmin, err := a.usrProvider.IsAdmin(ctx, userID)
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", op, err)
+		if errors.Is(err, storage.ErrAppNotFound) {
+			log.Warn("user not found", sl.Err(err))
+		}
+		return false, fmt.Errorf("%s: %w", op, ErrInvalidAppId)
 	}
 
 	return isAdmin, nil
